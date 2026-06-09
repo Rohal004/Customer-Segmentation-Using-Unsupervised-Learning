@@ -24,7 +24,7 @@ REQUIRED_COLUMNS = ["Annual Income (k$)", "Spending Score (1-100)"]
 RANDOM_STATE = 42
 TSNE_PERPLEXITY_CANDIDATES = (5, 10, 20, 30, 40)
 TSNE_MIN_PERPLEXITY = 2
-TSNE_MAX_PERPLEXITY = 30
+TSNE_MAX_PERPLEXITY = 40
 LOGGER = logging.getLogger(__name__)
 
 
@@ -175,6 +175,9 @@ def find_best_k(scaled_features: np.ndarray, output_dir: Path) -> int:
 
 def optimize_tsne_projection(scaled_features: np.ndarray, labels: np.ndarray) -> tuple[np.ndarray, int]:
     sample_count = len(scaled_features)
+    if sample_count <= TSNE_MIN_PERPLEXITY:
+        raise ValueError("t-SNE requires more than 2 rows to compute a valid perplexity")
+
     valid_perplexities = [p for p in TSNE_PERPLEXITY_CANDIDATES if 1 < p < sample_count]
 
     if not valid_perplexities:
@@ -327,7 +330,7 @@ def build_marketing_strategy(profile_row: pd.Series, income_median: float, spend
 
 
 def estimate_revenue_potential(customer_count: float, income_mean: float, spending_mean: float) -> float:
-    """Estimate relative segment revenue using customer volume, income level, and spending intensity."""
+    """Estimate relative revenue by scaling income volume by spending score as a percentage multiplier."""
     return float(customer_count * income_mean * spending_mean / 100)
 
 
@@ -428,6 +431,10 @@ def segment_customers(
 
     if clusters is not None and clusters < 2:
         raise ValueError("--clusters must be at least 2")
+    if len(df) < 3:
+        raise ValueError("Dataset must contain at least 3 rows for clustering and t-SNE")
+    if clusters is not None and clusters >= len(df):
+        raise ValueError("Number of clusters must be less than the number of data points")
 
     output_dir = Path("outputs")
     output_dir.mkdir(exist_ok=True)
@@ -440,8 +447,6 @@ def segment_customers(
 
     used_auto_k = clusters is None
     k = clusters if clusters is not None else find_best_k(scaled_features, output_dir=output_dir)
-    if k >= len(df):
-        raise ValueError("Number of clusters must be less than the number of data points")
 
     LOGGER.info("Training K-Means with k=%d", k)
     model = KMeans(n_clusters=k, random_state=RANDOM_STATE, n_init=10)
