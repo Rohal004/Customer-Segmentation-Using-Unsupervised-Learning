@@ -22,6 +22,9 @@ from sklearn.preprocessing import StandardScaler
 
 REQUIRED_COLUMNS = ["Annual Income (k$)", "Spending Score (1-100)"]
 RANDOM_STATE = 42
+TSNE_PERPLEXITY_CANDIDATES = (5, 10, 20, 30, 40)
+TSNE_MIN_PERPLEXITY = 2
+TSNE_MAX_PERPLEXITY = 30
 LOGGER = logging.getLogger(__name__)
 
 
@@ -172,11 +175,10 @@ def find_best_k(scaled_features: np.ndarray, output_dir: Path) -> int:
 
 def optimize_tsne_projection(scaled_features: np.ndarray, labels: np.ndarray) -> tuple[np.ndarray, int]:
     sample_count = len(scaled_features)
-    candidates = [5, 10, 20, 30, 40]
-    valid_perplexities = [p for p in candidates if 1 < p < sample_count]
+    valid_perplexities = [p for p in TSNE_PERPLEXITY_CANDIDATES if 1 < p < sample_count]
 
     if not valid_perplexities:
-        fallback = max(2, min(30, sample_count - 1))
+        fallback = max(TSNE_MIN_PERPLEXITY, min(TSNE_MAX_PERPLEXITY, sample_count - 1))
         tsne = TSNE(n_components=2, random_state=RANDOM_STATE, perplexity=fallback, init="pca")
         return tsne.fit_transform(scaled_features), fallback
 
@@ -324,6 +326,11 @@ def build_marketing_strategy(profile_row: pd.Series, income_median: float, spend
     )
 
 
+def estimate_revenue_potential(customer_count: float, income_mean: float, spending_mean: float) -> float:
+    """Estimate relative segment revenue using customer volume, income level, and spending intensity."""
+    return float(customer_count * income_mean * spending_mean / 100)
+
+
 def create_segment_profiles(df: pd.DataFrame, output_dir: Path) -> pd.DataFrame:
     profile = (
         df.groupby("Cluster", as_index=False)
@@ -358,8 +365,13 @@ def create_segment_profiles(df: pd.DataFrame, output_dir: Path) -> pd.DataFrame:
         ),
         axis=1,
     )
-    profile["Estimated Revenue Potential"] = (
-        profile["Customer Count"] * profile["Income Mean (k$)"] * profile["Spending Mean"] / 100
+    profile["Estimated Revenue Potential"] = profile.apply(
+        lambda row: estimate_revenue_potential(
+            customer_count=row["Customer Count"],
+            income_mean=row["Income Mean (k$)"],
+            spending_mean=row["Spending Mean"],
+        ),
+        axis=1,
     ).round(2)
 
     profile.to_csv(output_dir / "customer_segments_profile.csv", index=False)
