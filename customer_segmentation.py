@@ -176,12 +176,14 @@ def find_best_k(scaled_features: np.ndarray, output_dir: Path) -> int:
 def optimize_tsne_projection(scaled_features: np.ndarray, labels: np.ndarray) -> tuple[np.ndarray, int]:
     sample_count = len(scaled_features)
     if sample_count <= TSNE_MIN_PERPLEXITY:
-        raise ValueError("t-SNE requires more than 2 rows to compute a valid perplexity")
+        raise ValueError(
+            f"t-SNE requires more than {TSNE_MIN_PERPLEXITY} rows to compute a valid perplexity"
+        )
 
     valid_perplexities = [p for p in TSNE_PERPLEXITY_CANDIDATES if 1 < p < sample_count]
 
     if not valid_perplexities:
-        fallback = max(TSNE_MIN_PERPLEXITY, min(TSNE_MAX_PERPLEXITY, sample_count - 1))
+        fallback = min(TSNE_MAX_PERPLEXITY, sample_count - 1)
         tsne = TSNE(n_components=2, random_state=RANDOM_STATE, perplexity=fallback, init="pca")
         return tsne.fit_transform(scaled_features), fallback
 
@@ -329,7 +331,7 @@ def build_marketing_strategy(profile_row: pd.Series, income_median: float, spend
     )
 
 
-def estimate_revenue_potential(customer_count: float, income_mean: float, spending_mean: float) -> float:
+def estimate_revenue_potential(customer_count: int, income_mean: float, spending_mean: float) -> float:
     """Estimate relative revenue by scaling income volume by spending score as a percentage multiplier."""
     return float(customer_count * income_mean * spending_mean / 100)
 
