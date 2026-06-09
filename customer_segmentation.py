@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn as sns
 from sklearn.cluster import KMeans
@@ -13,6 +14,7 @@ from sklearn.preprocessing import StandardScaler
 
 
 REQUIRED_COLUMNS = ["Annual Income (k$)", "Spending Score (1-100)"]
+RANDOM_STATE = 42
 
 
 def resolve_dataset_path(dataset_path: str | None) -> Path:
@@ -48,13 +50,13 @@ def run_eda(df: pd.DataFrame) -> None:
 
 
 
-def find_best_k(scaled_features: pd.DataFrame) -> int:
+def find_best_k(scaled_features: np.ndarray) -> int:
     k_values = list(range(2, 11))
     inertias = []
     silhouettes = []
 
     for k in k_values:
-        model = KMeans(n_clusters=k, random_state=42, n_init=10)
+        model = KMeans(n_clusters=k, random_state=RANDOM_STATE, n_init=10)
         labels = model.fit_predict(scaled_features)
         inertias.append(model.inertia_)
         silhouettes.append(silhouette_score(scaled_features, labels))
@@ -123,15 +125,15 @@ def segment_customers(dataset: Path, clusters: int | None = None) -> None:
 
     features = df[REQUIRED_COLUMNS].copy()
     scaler = StandardScaler()
-    scaled = scaler.fit_transform(features)
+    scaled_features = scaler.fit_transform(features)
 
     used_auto_k = clusters is None
-    k = clusters if clusters is not None else find_best_k(scaled)
-    model = KMeans(n_clusters=k, random_state=42, n_init=10)
-    df["Cluster"] = model.fit_predict(scaled)
+    k = clusters if clusters is not None else find_best_k(scaled_features)
+    model = KMeans(n_clusters=k, random_state=RANDOM_STATE, n_init=10)
+    df["Cluster"] = model.fit_predict(scaled_features)
 
-    pca = PCA(n_components=2, random_state=42)
-    components = pca.fit_transform(scaled)
+    pca = PCA(n_components=2, random_state=RANDOM_STATE)
+    components = pca.fit_transform(scaled_features)
     df["PCA1"] = components[:, 0]
     df["PCA2"] = components[:, 1]
 
