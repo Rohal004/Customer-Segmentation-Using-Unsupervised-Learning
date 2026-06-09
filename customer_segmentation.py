@@ -25,6 +25,8 @@ RANDOM_STATE = 42
 TSNE_PERPLEXITY_CANDIDATES = (5, 10, 20, 30, 40)
 TSNE_MIN_PERPLEXITY = 2
 TSNE_MAX_PERPLEXITY = 40
+MAX_HISTOGRAM_COLUMNS = 3
+SILHOUETTE_LABEL_X_OFFSET = -0.08
 LOGGER = logging.getLogger(__name__)
 
 
@@ -124,7 +126,7 @@ def run_eda(df: pd.DataFrame, output_dir: Path, extended_eda: bool = False) -> N
     plt.savefig(output_dir / "eda_correlation_heatmap.png", dpi=150)
     plt.close()
 
-    n_cols = min(3, len(numeric_df.columns))
+    n_cols = min(MAX_HISTOGRAM_COLUMNS, len(numeric_df.columns))
     n_rows = int(np.ceil(len(numeric_df.columns) / n_cols))
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows))
     axes_arr = np.atleast_1d(axes).ravel()
@@ -180,7 +182,7 @@ def optimize_tsne_projection(scaled_features: np.ndarray, labels: np.ndarray) ->
             f"t-SNE requires more than {TSNE_MIN_PERPLEXITY} rows to compute a valid perplexity"
         )
 
-    valid_perplexities = [p for p in TSNE_PERPLEXITY_CANDIDATES if 1 < p < sample_count]
+    valid_perplexities = [p for p in TSNE_PERPLEXITY_CANDIDATES if TSNE_MIN_PERPLEXITY < p < sample_count]
 
     if not valid_perplexities:
         fallback = min(TSNE_MAX_PERPLEXITY, sample_count - 1)
@@ -266,7 +268,7 @@ def save_silhouette_analysis(scaled_features: np.ndarray, labels: np.ndarray, ou
         size = len(values)
         y_upper = y_lower + size
         ax.fill_betweenx(np.arange(y_lower, y_upper), 0, values, alpha=0.7)
-        ax.text(-0.08, y_lower + 0.5 * size, str(cluster))
+        ax.text(SILHOUETTE_LABEL_X_OFFSET, y_lower + 0.5 * size, str(cluster))
         y_lower = y_upper + 10
         silhouette_rows.append(
             {
@@ -332,7 +334,7 @@ def build_marketing_strategy(profile_row: pd.Series, income_median: float, spend
 
 
 def estimate_revenue_potential(customer_count: int, income_mean: float, spending_mean: float) -> float:
-    """Estimate relative revenue by scaling income volume by spending score as a percentage multiplier."""
+    """Estimate a relative segment potential score (not currency) from count × income × spending percentage."""
     return float(customer_count * income_mean * spending_mean / 100)
 
 
